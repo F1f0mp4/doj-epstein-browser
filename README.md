@@ -40,7 +40,8 @@ A lightweight, single-file web application for browsing and viewing the U.S. Dep
       - Open the app in a **Private/Incognito window** (Ctrl+Shift+P on Windows/Linux, Cmd+Shift+N on Mac)
       - Select a dataset and click on a file
       - You will see the age verification page in the viewer
-      - Click **"Yes, I am 18 years or older"** to confirm
+      - Click on green button **"Open original"** then on offitial site press **"Yes, I am 18 years or older"** then head back to `epstein-navigator.html`
+      - You sould be good to go
 
    2. **After Verification**:
       - Your age verification is now cached in the browser session
