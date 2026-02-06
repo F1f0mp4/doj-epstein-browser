@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Epstein Disclosure Library</title>
+    <script src="https://js.puter.com/v2/"></script>
+    <style>
+        :root { --bg: #1a1a1a; --sidebar: #252525; --accent: #007bff; --text: #e0e0e0; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: var(--bg); color: var(--text); overflow: hidden; }
+        
+        /* Sidebar Styles */
+        #sidebar { width: 320px; background: var(--sidebar); border-right: 1px solid #333; display: flex; flex-direction: column; }
+        #sidebar-header { padding: 20px; border-bottom: 1px solid #333; }
+        #dataset-selector { width: 100%; padding: 10px; background: #333; color: white; border: 1px solid #444; border-radius: 4px; margin-top: 10px; }
+        
+        #file-list { flex-grow: 1; overflow-y: auto; padding: 10px; }
+        .file-item { padding: 12px; margin-bottom: 5px; background: #333; border-radius: 4px; cursor: pointer; font-size: 13px; transition: 0.2s; border-left: 3px solid transparent; }
+        .file-item:hover { background: #444; }
+        .file-item.active { background: #004a99; border-left-color: var(--accent); }
+
+        /* Main Content */
+        #main { flex-grow: 1; display: flex; flex-direction: column; }
+        #top-nav { height: 60px; background: #222; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #333; }
+        #viewer-container { flex-grow: 1; background: #525659; position: relative; }
+        iframe { width: 100%; height: 100%; border: none; }
+
+        /* Loader */
+        .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .spinner { border: 4px solid #333; border-top: 4px solid var(--accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <div id="sidebar-header">
+        <h3 style="margin:0">Epstein Library</h3>
+        <p style="font-size: 11px; color: #888;">Justice Department Disclosures</p>
+        <select id="dataset-selector" onchange="loadDataSet(this.value)">
+            <option value="">-- Select a Data Set --</option>
+            <option value="1">Data Set 1 (Initial Release)</option>
+            <option value="2">Data Set 2</option>
+            <option value="3">Data Set 3</option>
+            <option value="4">Data Set 4</option>
+            <option value="5">Data Set 5</option>
+            <option value="6">Data Set 6</option>
+            <option value="7">Data Set 7</option>
+            <option value="8">Data Set 8</option>
+            <option value="9">Data Set 9</option>
+            <option value="10">Data Set 10</option>
+            <option value="11">Data Set 11</option>
+            <option value="12">Data Set 12 (Jan 2026)</option>
+        </select>
+    </div>
+    <div id="file-list">
+        <div style="padding: 20px; color: #666; text-align: center;">Pick a shelf (Data Set) to see the files...</div>
+    </div>
+</div>
+
+<div id="main">
+    <div id="top-nav">
+        <div id="current-file-info"><b>No file selected</b></div>
+        <div style="display:flex; gap: 10px;">
+            <button onclick="changeFile(-1)" style="padding: 5px 15px; cursor:pointer">← Prev</button>
+            <button onclick="changeFile(1)" style="padding: 5px 15px; cursor:pointer">Next →</button>
+            <button onclick="openOriginal()" style="padding: 5px 15px; background: #28a745; color: white; border: none; border-radius: 3px; cursor:pointer">Open Original ↗</button>
+        </div>
+    </div>
+    <div id="viewer-container">
+        <div id="loading-view" class="loader hidden">
+            <div class="spinner"></div>
+            <p>Fetching files from DOJ...</p>
+        </div>
+        <iframe id="pdf-viewer" src="about:blank"></iframe>
+        
+        <!-- Toggle button for debug/controls panels -->
+        <button id="toggle-panels-btn" style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.6); color:#fff; border:1px solid #666; padding:6px 10px; border-radius:4px; cursor:pointer; font-size:12px; z-index:100;">
+            ⚙️ Debug
+        </button>
+        
+        <div id="debug-status" style="position:absolute; bottom:10px; left:10px; background:rgba(0,0,0,0.6); color:#fff; padding:8px; font-size:12px; border-radius:4px; max-width:40%; max-height:30%; overflow:auto; display:none; flex-direction:row; gap:8px; align-items:flex-start;">
+            <span id="debug-icon" style="flex:0 0 auto; width:20px; height:20px; display:inline-block;">
+                <!-- Terminal icon (inline SVG) -->
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" aria-hidden="true">
+                    <path d="M4 6H20" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+                    <path d="M4 18H20" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+                    <path d="M8 11L11 14L8 17" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 14H16" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <div id="debug-text" style="flex:1 1 auto; white-space:pre-wrap; overflow:auto; max-height:220px;">
+            </div>
+        </div>
+        <div id="agegate-controls" style="position:absolute; top:50px; left:10px; background:rgba(0,0,0,0.7); color:#fff; padding:8px; font-size:13px; border-radius:6px; display:none; z-index:50;">
+            <div id="agegate-msg" style="margin-bottom:6px">This file is protected by an age verification page. Click 'Yes' inside the viewer to proceed, then press Retry.</div>
+            <div style="display:flex; gap:8px;"><button id="agegate-retry" style="padding:6px 10px; cursor:pointer">Retry</button><button id="agegate-open" style="padding:6px 10px; cursor:pointer">Open Age Page</button></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentFiles = [];
+    let currentIndex = -1;
+    let currentBlobUrl = null;
+
+    async function fetchPageFiles(url) {
+        const corsProxy = 'https://corsproxy.io/?';
+        const resp = await fetch(corsProxy + encodeURIComponent(url));
+        const html = await resp.text();
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        const content = doc.querySelector('article') || doc.querySelector('.node-content') || doc.body;
+        const links = Array.from(content.querySelectorAll('a'));
+
+        const files = links
+            .filter(a => {
+                const href = a.getAttribute('href') || "";
+                return href.includes('/media/') || href.toLowerCase().endsWith('.pdf');
+            })
+            .map(a => {
+                let fullUrl = a.getAttribute('href') || '';
+                if (fullUrl && fullUrl.startsWith('/')) fullUrl = "https://www.justice.gov" + fullUrl;
+                return {
+                    title: a.innerText.trim() || (fullUrl.split('/').pop() || 'file'),
+                    url: fullUrl
+                };
+            });
+
+        // Remove entries without a usable URL
+        const filteredFiles = files.filter(f => f && f.url);
+
+        // Collect pagination numeric links (e.g., ?page=1)
+        const pageNums = new Set();
+        Array.from(content.querySelectorAll('a')).forEach(a => {
+            const href = a.getAttribute('href') || '';
+            const m = href.match(/[?&]page=(\d+)/);
+            if (m) pageNums.add(parseInt(m[1], 10));
+        });
+
+        // Find next page link as fallback
+        const nextBtn = Array.from(content.querySelectorAll('a')).find(a => {
+            const text = (a.textContent || '').trim();
+            const rel = a.getAttribute('rel') || '';
+            const cls = a.className || '';
+            return /next/i.test(text) || rel === 'next' || /pager|next/.test(cls);
+        });
+
+        return { files: filteredFiles, nextUrl: nextBtn ? nextBtn.getAttribute('href') : null, pageNumbers: Array.from(pageNums).sort((a,b)=>a-b) };
+    }
+
+    async function loadDataSet(num) {
+        if (!num) return;
+
+        const listContainer = document.getElementById('file-list');
+        const loader = document.getElementById('loading-view');
+        const infoEl = document.getElementById('current-file-info');
+
+        currentIndex = -1;
+        currentFiles = [];
+        listContainer.innerHTML = '';
+        infoEl.innerHTML = '<b>Loading all pages...</b>';
+        loader.classList.remove('hidden');
+        document.getElementById('pdf-viewer').src = 'about:blank';
+
+        try {
+            const baseUrl = `https://www.justice.gov/epstein/doj-disclosures/data-set-${num}-files`;
+            let pageUrl = baseUrl;
+            let pageCount = 0;
+
+            // Fetch first page and detect pagination
+            pageCount++;
+            infoEl.innerHTML = `<b>Loading page ${pageCount}...</b>`;
+            const firstResult = await fetchPageFiles(pageUrl);
+            currentFiles = currentFiles.concat(firstResult.files.filter(Boolean));
+
+            const nums = firstResult.pageNumbers || [];
+            if (nums.length > 0) {
+                // Determine highest page number and fetch all numeric pages
+                const maxPage = Math.max(...nums);
+                for (let p = 1; p <= maxPage; p++) {
+                    pageCount++;
+                    infoEl.innerHTML = `<b>Loading page ${pageCount} (page=${p})...</b>`;
+                    const pUrl = pageUrl.split('?')[0] + '?page=' + p;
+                    const res = await fetchPageFiles(pUrl);
+                    currentFiles = currentFiles.concat(res.files.filter(Boolean));
+                }
+            } else {
+                // Fall back to following "Next" links
+                let nextUrl = firstResult.nextUrl;
+                while (nextUrl && pageCount < 100) {
+                    pageCount++;
+                    infoEl.innerHTML = `<b>Loading page ${pageCount}...</b>`;
+                    const absolute = nextUrl.startsWith('http') ? nextUrl : 'https://www.justice.gov' + nextUrl;
+                    const res = await fetchPageFiles(absolute);
+                    currentFiles = currentFiles.concat(res.files.filter(Boolean));
+                    nextUrl = res.nextUrl;
+                }
+            }
+
+            loader.classList.add('hidden');
+
+            if (currentFiles.length === 0) {
+                listContainer.innerHTML = '<div style="padding:20px; color:orange;">No files found in this set.</div>';
+                infoEl.innerHTML = '<b>No files</b>';
+                return;
+            }
+
+            // Populate the "Library Shelf"
+            listContainer.innerHTML = '';
+            currentFiles.forEach((file, index) => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.id = `file-${index}`;
+                div.innerText = file.title;
+                div.onclick = () => selectFile(index);
+                listContainer.appendChild(div);
+            });
+
+            infoEl.innerHTML = `<b>Loaded ${currentFiles.length} files</b>`;
+            selectFile(0);
+
+        } catch (err) {
+            loader.classList.add('hidden');
+            listContainer.innerHTML = `<div style="padding:20px; color:red;">Error: ${err.message}</div>`;
+            infoEl.innerHTML = '<b>Error loading</b>';
+            console.error(err);
+        }
+    }
+
+    async function fetchAndShowPDF(url) {
+        const loader = document.getElementById('loading-view');
+        const iframe = document.getElementById('pdf-viewer');
+        const statusDiv = document.getElementById('debug-status');
+        const statusTextEl = document.getElementById('debug-text');
+        const agegateDiv = document.getElementById('agegate-controls');
+        window._lastRequestedPdf = url;
+
+        try {
+            loader.classList.remove('hidden');
+            if (statusDiv) { statusDiv.style.display = 'flex'; }
+            if (statusTextEl) { statusTextEl.innerText = `Loading: ${url}\n\nBrowser will handle age verification (cookies persist).`; }
+
+            // Load PDF directly in iframe (no proxy)
+            // This lets the browser handle cookies natively, so age verification only happens once per session
+            iframe.src = url;
+
+        } catch (err) {
+            console.error('Failed to load PDF:', err);
+            const infoEl = document.getElementById('current-file-info');
+            if (infoEl) infoEl.innerHTML = `<b>Error loading file</b>`;
+            if (statusTextEl) statusTextEl.innerText = `Error: ${err.message}`;
+        } finally {
+            loader.classList.add('hidden');
+        }
+    }
+
+    async function selectFile(index) {
+        if (index < 0 || index >= currentFiles.length) return;
+
+        // Update UI safely
+        if (currentIndex !== -1) {
+            const prev = document.getElementById(`file-${currentIndex}`);
+            if (prev) prev.classList.remove('active');
+        }
+
+        currentIndex = index;
+        const file = currentFiles[currentIndex];
+
+        const item = document.getElementById(`file-${currentIndex}`);
+        if (item) {
+            item.classList.add('active');
+            item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        document.getElementById('current-file-info').innerHTML = `<b>${file.title}</b>`;
+
+        // Load inside iframe using proxy+blob fallback to avoid popups/age gate
+        await fetchAndShowPDF(file.url);
+    }
+
+    function changeFile(dir) {
+        selectFile(currentIndex + dir);
+    }
+
+    function openOriginal() {
+        if (currentIndex !== -1) window.open(currentFiles[currentIndex].url, '_blank');
+    }
+
+    // Hotkeys
+    document.addEventListener('keydown', e => {
+        if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); changeFile(1); }
+        if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); changeFile(-1); }
+    });
+
+    // Toggle debug and agegate panels
+    const toggleBtn = document.getElementById('toggle-panels-btn');
+    const debugStatus = document.getElementById('debug-status');
+    const agegateControls = document.getElementById('agegate-controls');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            const isDebugVisible = debugStatus.style.display === 'flex' || debugStatus.style.display === 'block';
+            const isAgegateVisible = agegateControls.style.display === 'block';
+            debugStatus.style.display = (isDebugVisible) ? 'none' : 'flex';
+            agegateControls.style.display = (isAgegateVisible) ? 'none' : 'block';
+        });
+    }
+</script>
+
+</body>
+</html>
